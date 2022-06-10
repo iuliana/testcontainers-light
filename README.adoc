@@ -1,6 +1,6 @@
 == Testcontainers with MariaDB
 
-Code sample using Spring 6, Java 17 and Testcontainer  MariaDB to reproduce a configuration bug.
+Code sample using Spring 6, Java 17 and Testcontainers MariaDB to reproduce a configuration bug.
 
 Just run:
 
