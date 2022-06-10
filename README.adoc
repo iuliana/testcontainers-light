@@ -1,0 +1,15 @@
+== Testcontainers with MariaDB
+
+Code sample using Spring 6, Java 17 and Testcontainer  MariaDB to reproduce a configuration bug.
+
+Just run:
+
+[source]
+----
+mvn
+# default goals are awesome !!
+----
+
+The build should pass.
+
+Open link:src/test/java/org/toys/StoredFunctionTest.java[StoredFunctionTest.java] edit as recommended in the comments. The tests should fail.
