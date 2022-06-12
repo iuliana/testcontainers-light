@@ -36,25 +36,23 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.test.context.jdbc.SqlMergeMode;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.testcontainers.containers.MariaDBContainer;
-import org.testcontainers.ext.ScriptUtils;
-import org.testcontainers.jdbc.JdbcDatabaseDelegate;
-import org.testcontainers.shaded.com.google.common.io.Resources;
 import org.toys.repo.SingerJdbcRepo;
 import org.toys.repo.SingerRepo;
 
-import javax.script.ScriptException;
 import javax.sql.DataSource;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
+ *
  * Created by iuliana.cosmina on 10/06/2022
  */
+@SqlMergeMode(SqlMergeMode.MergeMode.MERGE)
+@Sql({ "classpath:testcontainers/drop-schema.sql", "classpath:testcontainers/create-schema.sql" })
 @SpringJUnitConfig(classes = {StoredFunctionTest.TestContainersConfig.class, SingerJdbcRepo.class})
 public class StoredFunctionTest {
 
@@ -68,6 +66,7 @@ public class StoredFunctionTest {
     }
 
     @Test // method testing stored function
+    @Sql({ "classpath:testcontainers/stored-function.sql" })
     void testStoredFunction(){
         var firstName = singerRepo.findFirstNameById(2L).orElse(null);
         assertEquals("Ben", firstName);
@@ -77,36 +76,12 @@ public class StoredFunctionTest {
     public static class TestContainersConfig {
         private static final Logger LOGGER = LoggerFactory.getLogger(TestContainersConfig.class);
 
-        // TODO Comment this and use the other to reproduce failure
-        // -----------------------working config ---------------------
-        public MariaDBContainer<?> mariaDB =
-                new MariaDBContainer<>("mariadb:10.7.4-focal");
+        MariaDBContainer<?> mariaDB = new MariaDBContainer<>("mariadb:10.7.4-focal");
 
         @PostConstruct
-        public void initialize() throws ScriptException, IOException {
-            final String script1 = Resources.toString(Resources.getResource("testcontainers/create-schema.sql"), StandardCharsets.UTF_8);
-            final String script2 = Resources.toString(Resources.getResource("testcontainers/stored-function.sql"), StandardCharsets.UTF_8);
-            mariaDB.start();
-            ScriptUtils.executeDatabaseScript(new JdbcDatabaseDelegate(mariaDB,""), "schema.sql", script1, false, false, ScriptUtils.DEFAULT_COMMENT_PREFIX,
-                    ScriptUtils.DEFAULT_STATEMENT_SEPARATOR, "$$", "$$$");
-            ScriptUtils.executeDatabaseScript(new JdbcDatabaseDelegate(mariaDB,""), "schema.sql", script2, false, false, ScriptUtils.DEFAULT_COMMENT_PREFIX,
-                    ScriptUtils.DEFAULT_STATEMENT_SEPARATOR, "$$", "$$$");
-        }
-        // -----------------------working config ---------------------
-
-        // TODO Remove comment from this and run, expect fail
-        /*
-        public MariaDBContainer<?> mariaDB =
-                new MariaDBContainer<>("mariadb:10.7.4")
-                        .withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/create-schema.sql"), " /docker-entrypoint-initdb.d/"
-                        ).withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/stored-function.sql"), " /docker-entrypoint-initdb.d/"
-                        );
-
-        @PostConstruct
-        public void initialize() throws ScriptException, IOException {
+        void initialize() {
             mariaDB.start();
         }
-        */
 
         @PreDestroy
         void tearDown(){
@@ -114,7 +89,7 @@ public class StoredFunctionTest {
         }
 
         @Bean
-        public DataSource dataSource() {
+        DataSource dataSource() {
             try {
                 var dataSource = new BasicDataSource();
                 dataSource.setDriverClassName(mariaDB.getDriverClassName());
