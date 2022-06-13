@@ -36,10 +36,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.context.jdbc.SqlMergeMode;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.testcontainers.containers.MariaDBContainer;
+import org.testcontainers.utility.MountableFile;
 import org.toys.repo.SingerJdbcRepo;
 import org.toys.repo.SingerRepo;
 
@@ -50,11 +50,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 /**
  *
  * Created by iuliana.cosmina on 10/06/2022
+ *  TODO: THIS DOES NOT WORK!
  */
 @SqlMergeMode(SqlMergeMode.MergeMode.MERGE)
-@Sql({ "classpath:testcontainers/drop-schema.sql", "classpath:testcontainers/create-schema.sql" })
-@SpringJUnitConfig(classes = {StoredFunctionTest.TestContainersConfig.class, SingerJdbcRepo.class})
-public class StoredFunctionTest {
+@SpringJUnitConfig(classes = {StoredFunctionV3Test.TestContainersConfig.class, SingerJdbcRepo.class})
+public class StoredFunctionV3Test {
 
     @Autowired
     SingerRepo singerRepo;
@@ -66,7 +66,6 @@ public class StoredFunctionTest {
     }
 
     @Test // method testing stored function
-    @Sql({ "classpath:testcontainers/stored-function.sql" })
     void testStoredFunction(){
         var firstName = singerRepo.findFirstNameById(2L).orElse(null);
         assertEquals("Ben", firstName);
@@ -76,10 +75,14 @@ public class StoredFunctionTest {
     public static class TestContainersConfig {
         private static final Logger LOGGER = LoggerFactory.getLogger(TestContainersConfig.class);
 
-        MariaDBContainer<?> mariaDB = new MariaDBContainer<>("mariadb:10.7.4-focal");
+        public MariaDBContainer<?> mariaDB =
+                new MariaDBContainer<>("mariadb:10.7.4")
+                        .withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/create-schema.sql"), " /docker-entrypoint-initdb.d/")
+                        //.withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/stored-function.sql"), " /docker-entrypoint-initdb.d/)"
+                        ;
 
         @PostConstruct
-        void initialize() {
+        public void initialize() {
             mariaDB.start();
         }
 
