@@ -28,48 +28,33 @@ SOFTWARE.
 package org.toys;
 
 import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
+import org.apache.commons.dbcp2.BasicDataSource;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.test.context.jdbc.SqlMergeMode;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.testcontainers.containers.MariaDBContainer;
-import org.testcontainers.ext.ScriptUtils;
-import org.testcontainers.jdbc.JdbcDatabaseDelegate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.shaded.com.google.common.io.Resources;
-import org.toys.config.BasicDataSourceCfg;
+import org.testcontainers.utility.MountableFile;
 import org.toys.repo.SingerJdbcRepo;
 import org.toys.repo.SingerRepo;
 
-import javax.script.ScriptException;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import javax.sql.DataSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  *
  * Created by iuliana.cosmina on 10/06/2022
- * THIS WORKS
+ *  TODO: THIS DOES NOT WORK!
  */
-@Testcontainers
-@SpringJUnitConfig(classes = {StoredFunctionV3Test.TestContainersConfig.class, SingerJdbcRepo.class})
-public class StoredFunctionV3Test {
-
-    @Container
-    static MariaDBContainer<?> mariaDB = new MariaDBContainer<>("mariadb:10.7.4-focal");
-
-    @DynamicPropertySource // this does the magic
-    static void setUp(DynamicPropertyRegistry registry) {
-        registry.add("jdbc.driverClassName", mariaDB::getDriverClassName);
-        registry.add("jdbc.url", mariaDB::getJdbcUrl);
-        registry.add("jdbc.username", mariaDB::getUsername);
-        registry.add("jdbc.password", mariaDB::getPassword);
-    }
+@SqlMergeMode(SqlMergeMode.MergeMode.MERGE)
+@SpringJUnitConfig(classes = {StoredFunctionV4Test.TestContainersConfig.class, SingerJdbcRepo.class})
+public class StoredFunctionV4Test {
 
     @Autowired
     SingerRepo singerRepo;
@@ -87,18 +72,39 @@ public class StoredFunctionV3Test {
     }
 
     @Configuration
-    @Import(BasicDataSourceCfg.class)
     public static class TestContainersConfig {
+        private static final Logger LOGGER = LoggerFactory.getLogger(TestContainersConfig.class);
+
+        public MariaDBContainer<?> mariaDB =
+                new MariaDBContainer<>("mariadb:10.7.4")
+                        .withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/create-schema.sql"), " /docker-entrypoint-initdb.d/")
+                        .withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/stored-function.sql"), " /docker-entrypoint-initdb.d/")
+                        ;
 
         @PostConstruct
-        public void initialize() throws ScriptException, IOException {
-            final String script1 = Resources.toString(Resources.getResource("testcontainers/create-schema.sql"), StandardCharsets.UTF_8);
-            final String script2 = Resources.toString(Resources.getResource("testcontainers/stored-function.sql"), StandardCharsets.UTF_8);
+        public void initialize() {
             mariaDB.start();
-            ScriptUtils.executeDatabaseScript(new JdbcDatabaseDelegate(mariaDB,""), "schema.sql", script1, false, false, ScriptUtils.DEFAULT_COMMENT_PREFIX,
-                    ScriptUtils.DEFAULT_STATEMENT_SEPARATOR, "$$", "$$$");
-            ScriptUtils.executeDatabaseScript(new JdbcDatabaseDelegate(mariaDB,""), "schema.sql", script2, false, false, ScriptUtils.DEFAULT_COMMENT_PREFIX,
-                    ScriptUtils.DEFAULT_STATEMENT_SEPARATOR, "$$", "$$$");
+        }
+
+        @PreDestroy
+        void tearDown(){
+            mariaDB.stop();
+        }
+
+        @Bean
+        DataSource dataSource() {
+            try {
+                var dataSource = new BasicDataSource();
+                dataSource.setDriverClassName(mariaDB.getDriverClassName());
+                dataSource.setUrl(mariaDB.getJdbcUrl());
+                dataSource.setUsername(mariaDB.getUsername());
+                dataSource.setPassword(mariaDB.getPassword());
+                return dataSource;
+            } catch (Exception e) {
+                LOGGER.error("MariaDB TestContainers DataSource bean cannot be created!", e);
+                return null;
+            }
         }
     }
+
 }

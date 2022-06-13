@@ -27,41 +27,36 @@ SOFTWARE.
 */
 package org.toys;
 
-import jakarta.annotation.PostConstruct;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import org.testcontainers.containers.MariaDBContainer;
-import org.testcontainers.ext.ScriptUtils;
-import org.testcontainers.jdbc.JdbcDatabaseDelegate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.shaded.com.google.common.io.Resources;
+import org.testcontainers.utility.MountableFile;
 import org.toys.config.BasicDataSourceCfg;
 import org.toys.repo.SingerJdbcRepo;
 import org.toys.repo.SingerRepo;
-
-import javax.script.ScriptException;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  *
  * Created by iuliana.cosmina on 10/06/2022
- * THIS WORKS
+ *  TODO: THIS DOES NOT WORK!
  */
 @Testcontainers
-@SpringJUnitConfig(classes = {StoredFunctionV3Test.TestContainersConfig.class, SingerJdbcRepo.class})
-public class StoredFunctionV3Test {
+@SpringJUnitConfig(classes = {BasicDataSourceCfg.class, SingerJdbcRepo.class})
+public class StoredFunctionV5Test {
 
     @Container
-    static MariaDBContainer<?> mariaDB = new MariaDBContainer<>("mariadb:10.7.4-focal");
+    static MariaDBContainer<?> mariaDB =
+            new MariaDBContainer<>("mariadb:10.7.4")
+                    .withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/create-schema.sql"), " /docker-entrypoint-initdb.d/")
+                 .withCopyFileToContainer(MountableFile.forClasspathResource("testcontainers/stored-function.sql"), " /docker-entrypoint-initdb.d/")
+            ;
 
     @DynamicPropertySource // this does the magic
     static void setUp(DynamicPropertyRegistry registry) {
@@ -84,21 +79,5 @@ public class StoredFunctionV3Test {
     void testStoredFunction(){
         var firstName = singerRepo.findFirstNameById(2L).orElse(null);
         assertEquals("Ben", firstName);
-    }
-
-    @Configuration
-    @Import(BasicDataSourceCfg.class)
-    public static class TestContainersConfig {
-
-        @PostConstruct
-        public void initialize() throws ScriptException, IOException {
-            final String script1 = Resources.toString(Resources.getResource("testcontainers/create-schema.sql"), StandardCharsets.UTF_8);
-            final String script2 = Resources.toString(Resources.getResource("testcontainers/stored-function.sql"), StandardCharsets.UTF_8);
-            mariaDB.start();
-            ScriptUtils.executeDatabaseScript(new JdbcDatabaseDelegate(mariaDB,""), "schema.sql", script1, false, false, ScriptUtils.DEFAULT_COMMENT_PREFIX,
-                    ScriptUtils.DEFAULT_STATEMENT_SEPARATOR, "$$", "$$$");
-            ScriptUtils.executeDatabaseScript(new JdbcDatabaseDelegate(mariaDB,""), "schema.sql", script2, false, false, ScriptUtils.DEFAULT_COMMENT_PREFIX,
-                    ScriptUtils.DEFAULT_STATEMENT_SEPARATOR, "$$", "$$$");
-        }
     }
 }
